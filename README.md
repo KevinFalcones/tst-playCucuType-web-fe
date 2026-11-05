@@ -55,3 +55,42 @@ La suite de Frontend valida los flujos principales del portal `https://automatio
 ```bash
 # Ejecutar únicamente los escenarios de Interfaz de Usuario (UI)
 npm run test:ui
+
+---
+
+## 🔌 Suite de Pruebas API REST & Integración con MySQL (`src/test/api_ecommerce/` y `src/helper/database/`)
+
+El framework implementa pruebas de integración a nivel de Backend utilizando el motor `APIRequestContext` de Playwright y consumiendo datos de prueba dinámicos almacenados en una base de datos relacional **MySQL** (`automation_db`).
+
+### Arquitectura de Base de Datos (`src/helper/database/`)
+* **`src/helper/database/init_db.sql`**: Script DDL y DML que aprovisiona el esquema `automation_db`, crea las tablas `api_search_testdata` y `api_user_testdata`, e inserta los registros semilla (*Seed Data*) de forma idempotente (`ON DUPLICATE KEY UPDATE`).
+* **`src/helper/database/dbHelper.ts`**: Implementa la clase `DatabaseHelper` utilizando `mysql2/promise` bajo el patrón **Singleton Connection Pool**. Expone el método genérico tipado `executeQuery<T>(sql, params)` con consultas preparadas (`?`) para prevenir inyección SQL y garantizar alto rendimiento en ejecuciones paralelas.
+
+### Estructura de Archivos de la Suite API (`src/test/api_ecommerce/`)
+* **`src/test/api_ecommerce/data/apiEndpoints.json`**: Diccionario centralizado de rutas de los endpoints REST (`/api/productsList`, `/api/searchProduct`, `/api/createAccount`, `/api/verifyLogin`, `/api/deleteAccount`).
+* **`src/test/api_ecommerce/feature/ecommerceAPI.feature`**: Especificación Gherkin de los escenarios de Backend:
+  1. **Consulta de Catálogo (`@api @smoke`)**: Petición `GET` para verificar disponibilidad del servicio, código de estado y contrato de propiedades (`id`, `name`, `price`) sobre el listado de productos.
+  2. **Búsqueda Parametrizada desde MySQL (`@api @mysql @regression`)**: `Scenario Outline` que consulta en MySQL los criterios de prueba (`SEARCH_TOP`, `SEARCH_TSHIRT`), envía peticiones `POST` (`application/x-www-form-urlencoded`) y comprueba la consistencia de los productos filtrados.
+  3. **Ciclo de Vida Completo de Cuenta vía API (`@api @mysql @e2e`)**: Flujo transaccional que lee la plantilla `API_USER_01` desde MySQL, registra un usuario con `POST /api/createAccount` (código `201`), verifica sus credenciales con `POST /api/verifyLogin` (código `200`) y limpia el registro con `DELETE /api/deleteAccount` (código `200`).
+* **`src/test/api_ecommerce/steps/ecommerceAPISteps.ts`**: Implementación en TypeScript que mapea las filas devueltas por MySQL mediante interfaces tipadas (`SearchProductRow`, `UserApiRow`) y ejecuta las peticiones HTTP nativas con Playwright.
+
+### Aprovisionamiento de MySQL y Ejecución API
+```bash
+# 1. Crear la base de datos y cargar datos semilla en MySQL
+mysql -u root -p < src/helper/database/init_db.sql
+
+# 2. Ejecutar únicamente la suite de API REST + MySQL
+npm run test:api
+
+# 3. Ejecutar la suite completa (UI + API + MySQL) y generar el reporte HTML unificado
+npm test
+
+---
+
+## ⏱️ Control de Velocidad de Ejecución e Inspector Visual de API (`SLOW_MO` & `STEP_PAUSE`)
+
+Para facilitar las demostraciones en vivo y el *debugging* local sin penalizar el rendimiento en CI/CD (Azure Pipelines), el framework controla los tiempos de espera de forma centralizada desde `.env.qa`:
+
+* **`SLOW_MO` (en `src/hooks/hooks.ts`)**: Configura la propiedad nativa `slowMo` de Playwright al instanciar Chromium. Retrasa automáticamente cada interacción de UI (`click`, `fill`, `selectOption`) por el número de milisegundos definido (ej. `1000` ms en local, `0` ms en CI).
+* **`STEP_PAUSE` (en `src/hooks/hooks.ts` y `PlaywrightWrappers.ts`)**: Mantiene abierta la ventana del navegador al finalizar cada escenario antes de ejecutar el cierre de contexto (`After`), permitiendo observar el estado final de la pantalla.
+* **`renderApiCallOnScreen()` (en `src/helper/wrapper/PlaywrightWrappers.ts`)**: Dado que las pruebas de API REST (`APIRequestContext`) operan a nivel de red sin interfaz gráfica, este método inyecta un dashboard HTML en vivo dentro del navegador cuando `HEADLESS=false`, mostrando en tiempo real el método HTTP (`GET`/`POST`/`DELETE`), el endpoint, los datos extraídos desde MySQL y el JSON de respuesta recibido.

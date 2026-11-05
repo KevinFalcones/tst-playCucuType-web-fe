@@ -1,0 +1,9 @@
+{
+  "endpoints": {
+    "productsList": "/api/productsList",
+    "searchProduct": "/api/searchProduct",
+    "createAccount": "/api/createAccount",
+    "verifyLogin": "/api/verifyLogin",
+    "deleteAccount": "/api/deleteAccount"
+  }
+}
