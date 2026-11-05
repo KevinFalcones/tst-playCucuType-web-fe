@@ -1,0 +1,28 @@
+{
+  "name": "tst-playcucutype-web-fe",
+  "version": "1.0.0",
+  "description": "Testing Automation Repo sobre AutomationExercise.com con Playwright, Cucumber y TypeScript",
+  "scripts": {
+    "pretest": "npx ts-node src/helper/report/init.ts",
+    "test": "cross-env ENV=qa cucumber-js",
+    "test:api": "cross-env ENV=qa cucumber-js --tags \"@api\"",
+    "test:ui": "cross-env ENV=qa cucumber-js --tags \"@ui\"",
+    "posttest": "npx ts-node src/helper/report/report.ts"
+  },
+  "devDependencies": {
+    "@cucumber/cucumber": "^10.8.0",
+    "@playwright/test": "^1.45.0",
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^20.14.0",
+    "cross-env": "^7.0.3",
+    "dotenv": "^16.4.5",
+    "fs-extra": "^11.2.0",
+    "multiple-cucumber-html-reporter": "^3.6.2",
+    "ts-node": "^10.9.2",
+    "typescript": "~5.8.2",
+    "winston": "^3.13.0"
+  },
+  "dependencies": {
+    "mysql2": "^3.10.1"
+  }
+}
