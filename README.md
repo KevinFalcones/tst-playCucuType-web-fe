@@ -26,3 +26,32 @@ Este repositorio contiene un framework de pruebas automatizadas End-to-End (E2E)
 ### Capa de Ciclo de Vida (`src/hooks/`)
 * **`src/hooks/pageFixture.ts`**: Objeto compartido (Patrón *Singleton/Context*) que expone la pestaña activa del navegador (`page`), el cliente HTTP (`api`) y el `logger` a través de todos los archivos de Steps sin necesidad de instanciarlos repetidamente.
 * **`src/hooks/hooks.ts`**: Controla el ciclo de vida de las pruebas (`BeforeAll`, `Before`, `After`, `AfterAll`). Levanta el navegador Chromium, crea contextos limpios por escenario, **bloquea anuncios publicitarios (Google Ads)** del portal de pruebas para evitar falsos fallos, y toma capturas de pantalla automáticas si un escenario falla.
+
+
+## 🛠️ Stack Tecnológico y Rol en la Arquitectura
+
+* **Gherkin**: Lenguaje estructurado (`Given / When / Then`) utilizado para definir los escenarios de negocio en lenguaje natural dentro de los archivos `.feature`, facilitando la colaboración y el entendimiento común entre perfiles técnicos (DevOps/QA/Devs) y de negocio (Product Owners).
+* **Cucumber (`@cucumber/cucumber`)**: Motor de ejecución BDD (Behavior Driven Development) que enlaza las especificaciones en lenguaje natural de Gherkin con su implementación técnica en TypeScript, permitiendo filtrar ejecuciones por etiquetas (`@ui`, `@api`, `@smoke`, `@regression`, `@e2e`) y exportar reportes estandarizados (`JSON` y `JUnit XML`).
+* **Playwright (`@playwright/test`)**: Motor de automatización de última generación utilizado en doble vía:
+  * **UI Automation**: Controla el navegador Chromium mediante auto-esperas inteligentes (*auto-waiting*), interceptación de red (bloqueo de anuncios de Google Ads para evitar *flaky tests*) y selectores resilientes.
+  * **API Testing**: Provee el contexto `APIRequestContext` para enviar solicitudes HTTP (`GET`, `POST`, `PUT`, `DELETE`), enviar payloads `JSON`/`Form-Data` y validar códigos de estado y esquemas de respuesta.
+* **TypeScript**: Superconjunto tipado de JavaScript que aporta interfaces estrictas (`UserTestData`), autocompletado y detección temprana de errores en tiempo de compilación, garantizando un código mantenible y escalable.
+
+---
+
+## 🖥️ Suite de Pruebas UI (`src/test/ui_ecommerce/`)
+
+La suite de Frontend valida los flujos principales del portal `https://automationexercise.com` utilizando datos externos y patrones de diseño resilientes:
+
+### Estructura de Archivos UI
+* **`src/test/ui_ecommerce/data/userData.json`**: Almacena los datos estáticos del usuario de prueba (dirección, credenciales base) y los parámetros del catálogo de productos (`searchTerm`, `expectedPrice`), desacoplando los datos de prueba de los scripts.
+* **`src/test/ui_ecommerce/feature/ecommerceUI.feature`**: Define los escenarios BDD:
+  1. **Ciclo de Vida de Cuenta (`@ui @smoke`)**: Registro de usuario con generación de correo electrónico único por timestamp, validación de sesión activa y eliminación de la cuenta (`ACCOUNT DELETED!`) para garantizar la **idempotencia** de la prueba en ejecuciones continuas de CI/CD.
+  2. **Validación de Login Negativo (`@ui @regression`)**: Utiliza un `Scenario Outline` con tabla `Examples` para realizar *Data-Driven Testing* de credenciales incorrectas.
+  3. **Búsqueda y Carrito de Compras (`@ui @e2e`)**: Flujo de búsqueda en el catálogo, adición al carrito y validación de integridad de nombre y precio en el checkout previo.
+* **`src/test/ui_ecommerce/steps/ecommerceUISteps.ts`**: Implementa los pasos en TypeScript consumiendo la clase `PlaywrightWrapper` (`waitAndClick`, `fillText`), validando aserciones con `expect` de Playwright y registrando trazabilidad paso a paso con `winston`.
+
+### Comandos de Ejecución UI
+```bash
+# Ejecutar únicamente los escenarios de Interfaz de Usuario (UI)
+npm run test:ui

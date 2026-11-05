@@ -12,14 +12,16 @@ export default class PlaywrightWrapper {
     }
 
     async waitAndClick(locator: string) {
-        const element = this.page.locator(locator);
+        const element = this.page.locator(locator).first();
         await element.waitFor({ state: "visible" });
+        await element.scrollIntoViewIfNeeded();
         await element.click();
     }
 
     async fillText(locator: string, text: string) {
-        const element = this.page.locator(locator);
+        const element = this.page.locator(locator).first();
         await element.waitFor({ state: "visible" });
+        await element.scrollIntoViewIfNeeded();
         await element.fill(text);
     }
 }
