@@ -1,0 +1,19 @@
+{
+  "newUser": {
+    "name": "Kevin Automation",
+    "password": "Password123!",
+    "firstName": "Kevin",
+    "lastName": "Falcones",
+    "company": "DevOps & QA Corp",
+    "address": "Av. Francisco de Orellana 100",
+    "country": "United States",
+    "state": "California",
+    "city": "Los Angeles",
+    "zipcode": "90001",
+    "mobile": "0999999999"
+  },
+  "productSearch": {
+    "searchTerm": "Blue Top",
+    "expectedPrice": "Rs. 500"
+  }
+}

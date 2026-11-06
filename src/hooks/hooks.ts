@@ -5,6 +5,7 @@ import { fixture } from "./pageFixture";
 import { getEnv } from "../helper/env/env";
 import { createLogger } from "winston";
 import { options } from "../helper/util/logger";
+import DatabaseHelper from "../helper/database/dbHelper";
 
 setDefaultTimeout(60 * 1000);
 
@@ -14,7 +15,12 @@ let context: BrowserContext;
 BeforeAll(async function () {
     getEnv();
     const isHeadless = process.env.HEADLESS === "true";
-    browser = await chromium.launch({ headless: isHeadless });
+    const slowMoMs = Number(process.env.SLOW_MO) || 0;
+
+    browser = await chromium.launch({
+        headless: isHeadless,
+        slowMo: slowMoMs // Retrasa cada interacción de Playwright automáticamente
+    });
 });
 
 Before(async function ({ pickle }) {
@@ -42,6 +48,13 @@ Before(async function ({ pickle }) {
 });
 
 After(async function ({ pickle, result }) {
+    const pauseMs = Number(process.env.STEP_PAUSE) || 0;
+
+    // Mantiene la pantalla visible al final del escenario para inspección visual
+    if (pauseMs > 0 && fixture.page) {
+        await fixture.page.waitForTimeout(pauseMs);
+    }
+
     if (result?.status === Status.FAILED && fixture.page) {
         const scenarioName = pickle.name.replace(/[^a-zA-Z0-9]/g, "_");
         const img = await fixture.page.screenshot({
@@ -61,5 +74,6 @@ After(async function ({ pickle, result }) {
 });
 
 AfterAll(async function () {
+    await DatabaseHelper.closePool();//to close pool db
     await browser.close();
 });
