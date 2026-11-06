@@ -164,8 +164,8 @@ stages:
               outputPath: '$(Pipeline.Workspace)/cucumber-azure-report'
               theme: 'bootstrap'
               reportSuiteAsScenarios: true
-              name: 'Automation Exercise E2E (API + UI)'
-              title: 'BDD Report - Playwright + Cucumber + TypeScript'
+              name: 'Automation Exercise E2E'
+              title: 'BDD Report - Playwright and Cucumber'
 
           # Publish boot XML (API + UI) into "Tests" Azure DevOps
           - task: PublishTestResults@2
