@@ -94,3 +94,19 @@ Para facilitar las demostraciones en vivo y el *debugging* local sin penalizar e
 * **`SLOW_MO` (en `src/hooks/hooks.ts`)**: Configura la propiedad nativa `slowMo` de Playwright al instanciar Chromium. Retrasa automáticamente cada interacción de UI (`click`, `fill`, `selectOption`) por el número de milisegundos definido (ej. `1000` ms en local, `0` ms en CI).
 * **`STEP_PAUSE` (en `src/hooks/hooks.ts` y `PlaywrightWrappers.ts`)**: Mantiene abierta la ventana del navegador al finalizar cada escenario antes de ejecutar el cierre de contexto (`After`), permitiendo observar el estado final de la pantalla.
 * **`renderApiCallOnScreen()` (en `src/helper/wrapper/PlaywrightWrappers.ts`)**: Dado que las pruebas de API REST (`APIRequestContext`) operan a nivel de red sin interfaz gráfica, este método inyecta un dashboard HTML en vivo dentro del navegador cuando `HEADLESS=false`, mostrando en tiempo real el método HTTP (`GET`/`POST`/`DELETE`), el endpoint, los datos extraídos desde MySQL y el JSON de respuesta recibido.
+
+
+---
+
+## 🚀 Arquitectura CI/CD Multi-Stage en Azure Pipelines (`azure-pipelines.yml`)
+
+El pipeline de integración continua está diseñado bajo un patrón **Fan-Out / Fan-In de 3 Stages** ejecutados sobre un **Agente Self-Hosted en Windows 11 (`pool: Default`)** mediante tareas de **PowerShell**:
+
+```text
+   ┌───────────────────────────┐
+   │  Stage 1: Test_API_Back   │──(Artifact_API)──┐
+   └───────────────────────────┘                  ├──► ┌───────────────────────────┐
+                                                  │    │ Stage 3: Publish_Reports  │
+   ┌───────────────────────────┐                  ├──► │ (Condición: succeeded())  │
+   │  Stage 2: Test_UI_Front   │──(Artifact_UI)───┘    └───────────────────────────┘
+   └───────────────────────────┘

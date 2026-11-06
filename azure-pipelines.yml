@@ -1,0 +1,160 @@
+trigger:
+  branches:
+    include:
+      - main
+
+# Usa exclusivamente el Self-Hosted Agent en tu laptop Windows 11
+pool:
+  name: 'selfHosted-win'
+
+variables:
+  ENV: 'qa'
+  HEADLESS: 'true'
+  SLOW_MO: '0'
+  STEP_PAUSE: '0'
+
+stages:
+  # =========================================================================
+  # STAGE 1: Test Backend (API REST + MySQL)
+  # =========================================================================
+  - stage: Test_API_Back
+    displayName: '1. Stage Backend (API + MySQL)'
+    dependsOn: [] # Declare undependences to run in parallel
+    jobs:
+      - job: RunApiTests
+        displayName: 'Execute Suite API'
+        steps:
+          - checkout: self
+            clean: true
+            displayName: 'Clone Repo'
+
+          - powershell: |
+              Write-Host "=== Install dependencies ===" -ForegroundColor Cyan
+              npm install
+
+              Write-Host "=== Prepair API folder results ===" -ForegroundColor Cyan
+              npx ts-node src/helper/report/init.ts
+
+              Write-Host "=== Executing Cucumber (@api) ===" -ForegroundColor Cyan
+              $env:ENV = "$(ENV)"
+              $env:HEADLESS = "$(HEADLESS)"
+              $env:SLOW_MO = "$(SLOW_MO)"
+              $env:STEP_PAUSE = "$(STEP_PAUSE)"
+
+              npx cucumber-js --tags "@api" `
+                --format json:test-results/cucumber-report-api.json `
+                --format junit:test-results/cucumber-junit-api.xml
+              
+              if ($LASTEXITCODE -ne 0) {
+                  Write-Error "Test Backend (API) Failed."
+                  exit $LASTEXITCODE
+              }
+            displayName: 'Execute Tests API (@api) with PowerShell'
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Save Parcial Report API as Artifact'
+            condition: succeeded()
+            inputs:
+              targetPath: '$(System.DefaultWorkingDirectory)/test-results'
+              artifact: 'Artifact_API'
+              publishLocation: 'pipeline'
+
+  # =========================================================================
+  # STAGE 2: Test Frontend (UI Web)
+  # =========================================================================
+  - stage: Test_UI_Front
+    displayName: '2. Stage Frontend (UI Web)'
+    dependsOn: [] # Run in the same parallel than Test_API_Back
+    jobs:
+      - job: RunUiTests
+        displayName: 'Execute Suite UI'
+        steps:
+          - checkout: self
+            clean: true
+            displayName: 'Clone Repo'
+
+          - powershell: |
+              Write-Host "=== Install dependencies ===" -ForegroundColor Cyan
+              npm install
+
+              Write-Host "=== Prepair UI results folder ===" -ForegroundColor Cyan
+              npx ts-node src/helper/report/init.ts
+
+              Write-Host "=== Execute Cucumber (@ui) ===" -ForegroundColor Cyan
+              $env:ENV = "$(ENV)"
+              $env:HEADLESS = "$(HEADLESS)"
+              $env:SLOW_MO = "$(SLOW_MO)"
+              $env:STEP_PAUSE = "$(STEP_PAUSE)"
+
+              npx cucumber-js --tags "@ui" `
+                --format json:test-results/cucumber-report-ui.json `
+                --format junit:test-results/cucumber-junit-ui.xml
+
+              if ($LASTEXITCODE -ne 0) {
+                  Write-Error "Frontend (UI) Test Failed."
+                  exit $LASTEXITCODE
+              }
+            displayName: 'Execute Tests UI (@ui) with PowerShell'
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Save Parcial Report UI as Artifact'
+            condition: succeeded()
+            inputs:
+              targetPath: '$(System.DefaultWorkingDirectory)/test-results'
+              artifact: 'Artifact_UI'
+              publishLocation: 'pipeline'
+
+  # =========================================================================
+  # STAGE 3: Consolidate and Publish Reports
+  # =========================================================================
+  - stage: Publish_Reports
+    displayName: '3. Publish Cucumber Consolidate Reports'
+    dependsOn:
+      - Test_API_Back
+      - Test_UI_Front
+    condition: succeeded() # If Stage 1 or Stage 2 fail, Skipped Stage
+    jobs:
+      - job: ConsolidateAndPublish
+        displayName: 'Consolidate Artifacts and Publish Report'
+        steps:
+          - checkout: none # don't need download repo, only artifacts
+
+          - powershell: |
+              $consolidatedPath = "$(Pipeline.Workspace)/consolidated-results"
+              if (Test-Path $consolidatedPath) { Remove-Item$consolidatedPath -Recurse -Force }
+              New-Item -ItemType Directory -Path $consolidatedPath -Force | Out-Null
+            displayName: 'Create Consolidate Directory (PowerShell)'
+
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download Stage 1 (API) Results'
+            inputs:
+              buildType: 'current'
+              artifactName: 'Artifact_API'
+              targetPath: '$(Pipeline.Workspace)/consolidated-results'
+
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download Stage 2 (UI) Results'
+            inputs:
+              buildType: 'current'
+              artifactName: 'Artifact_UI'
+              targetPath: '$(Pipeline.Workspace)/consolidated-results'
+
+          - task: PublishCucumberReport@1
+            displayName: 'Publish Cucumber Dashboard'
+            inputs:
+              jsonDir: '$(Pipeline.Workspace)/consolidated-results'
+              outputPath: '$(Pipeline.Workspace)/consolidated-results/cucumber-azure-report'
+              theme: 'bootstrap'
+              reportSuiteAsScenarios: true
+              name: 'Automation Exercise E2E (API + UI)'
+              title: 'BDD Report - Playwright + Cucumber + TypeScript'
+
+          # Publish boot XML (API + UI) into "Tests" Azure DevOps
+          - task: PublishTestResults@2
+            displayName: 'Publicar JUnit Metrics'
+            inputs:
+              testResultsFormat: 'JUnit'
+              testResultsFiles: '$(Pipeline.Workspace)/consolidated-results/cucumber-junit-*.xml'
+              mergeTestResults: true
+              failTaskOnFailedTests: true
+              testRunTitle: 'Suite E2E Complete (Backend API + Frontend UI)'
