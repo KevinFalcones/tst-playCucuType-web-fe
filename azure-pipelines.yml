@@ -3,7 +3,6 @@ trigger:
     include:
       - main
 
-# Usa exclusivamente el Self-Hosted Agent en tu laptop Windows 11
 pool:
   name: 'selfHosted-win'
 
@@ -18,7 +17,7 @@ stages:
   # STAGE 1: Test Backend (API REST + MySQL)
   # =========================================================================
   - stage: Test_API_Back
-    displayName: '1. Stage Backend (API + MySQL)'
+    displayName: 'Test Backend (API + MySQL)'
     dependsOn: [] # Declare undependences to run in parallel
     jobs:
       - job: RunApiTests
@@ -45,9 +44,16 @@ stages:
                 --format json:test-results/cucumber-report-api.json `
                 --format junit:test-results/cucumber-junit-api.xml
               
-              if ($LASTEXITCODE -ne 0) {
+              $exitCode = $LASTEXITCODE
+
+              # Delete default cucumber JSON to avoid duplications
+              if (Test-Path "test-results/cucumber-report.json") {
+                  Remove-Item "test-results/cucumber-report.json" -Force
+              }
+
+              if ($exitCode -ne 0) {
                   Write-Error "Test Backend (API) Failed."
-                  exit $LASTEXITCODE
+                  exit $exitCode
               }
             displayName: 'Execute Tests API (@api) with PowerShell'
 
@@ -63,7 +69,7 @@ stages:
   # STAGE 2: Test Frontend (UI Web)
   # =========================================================================
   - stage: Test_UI_Front
-    displayName: '2. Stage Frontend (UI Web)'
+    displayName: 'Test Frontend (UI Web)'
     dependsOn: [] # Run in the same parallel than Test_API_Back
     jobs:
       - job: RunUiTests
@@ -89,10 +95,16 @@ stages:
               npx cucumber-js --tags "@ui" `
                 --format json:test-results/cucumber-report-ui.json `
                 --format junit:test-results/cucumber-junit-ui.xml
+              $exitCode = $LASTEXITCODE
 
-              if ($LASTEXITCODE -ne 0) {
+              # Delete default cucumber JSON to avoid duplications
+              if (Test-Path "test-results/cucumber-report.json") {
+                  Remove-Item "test-results/cucumber-report.json" -Force
+              }
+
+              if ($exitCode -ne 0) {
                   Write-Error "Frontend (UI) Test Failed."
-                  exit $LASTEXITCODE
+                  exit $exitCode
               }
             displayName: 'Execute Tests UI (@ui) with PowerShell'
 
@@ -108,7 +120,7 @@ stages:
   # STAGE 3: Consolidate and Publish Reports
   # =========================================================================
   - stage: Publish_Reports
-    displayName: '3. Publish Cucumber Consolidate Reports'
+    displayName: 'Publish Reports'
     dependsOn:
       - Test_API_Back
       - Test_UI_Front
@@ -121,8 +133,14 @@ stages:
 
           - powershell: |
               $consolidatedPath = "$(Pipeline.Workspace)/consolidated-results"
-              if (Test-Path $consolidatedPath) { Remove-Item$consolidatedPath -Recurse -Force }
+              $reportOutputPath = "$(Pipeline.Workspace)/cucumber-azure-report"
+              if (Test-Path $consolidatedPath) { Remove-Item $consolidatedPath -Recurse -Force }
+              if (Test-Path $reportOutputPath) { Remove-Item $reportOutputPath -Recurse -Force }
               New-Item -ItemType Directory -Path $consolidatedPath -Force | Out-Null
+              New-Item -ItemType Directory -Path $reportOutputPath -Force | Out-Null
+              Write-Host "Directorios creados correctamente:" -ForegroundColor Green
+              Write-Host " - JSON Input: $consolidatedPath"
+              Write-Host " - HTML Output: $reportOutputPath"
             displayName: 'Create Consolidate Directory (PowerShell)'
 
           - task: DownloadPipelineArtifact@2
@@ -143,11 +161,11 @@ stages:
             displayName: 'Publish Cucumber Dashboard'
             inputs:
               jsonDir: '$(Pipeline.Workspace)/consolidated-results'
-              outputPath: '$(Pipeline.Workspace)/consolidated-results/cucumber-azure-report'
+              outputPath: '$(Pipeline.Workspace)/cucumber-azure-report'
               theme: 'bootstrap'
               reportSuiteAsScenarios: true
-              name: 'Automation Exercise E2E (API + UI)'
-              title: 'BDD Report - Playwright + Cucumber + TypeScript'
+              name: 'Automation Exercise E2E'
+              title: 'BDD Report - Playwright and Cucumber'
 
           # Publish boot XML (API + UI) into "Tests" Azure DevOps
           - task: PublishTestResults@2
